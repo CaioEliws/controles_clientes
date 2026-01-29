@@ -1,5 +1,7 @@
 package com.caio.controle_clientes.services;
 
+import com.caio.controle_clientes.exceptions.EmprestimoQuitadoException;
+import com.caio.controle_clientes.exceptions.ParcelaPagaException;
 import com.caio.controle_clientes.models.*;
 import com.caio.controle_clientes.repository.EmprestimoRepositorio;
 import com.caio.controle_clientes.repository.ParcelaRepositorio;
@@ -70,24 +72,35 @@ public class EmprestimoService {
     }
 
     @Transactional
-    public void pagarParcela(Long idEmprestimo, Integer numeroParcela) {
+    public void pagarParcela(Long idEmprestimo, Integer numeroParcela)
+            throws ParcelaPagaException, EmprestimoQuitadoException {
+
         Parcelas parcela = (Parcelas) parcelaRepositorio
                 .findByEmprestimoIdAndNumeroParcela(idEmprestimo, numeroParcela)
                 .orElseThrow(() -> new RuntimeException("Parcela não encontrada"));
 
-        if (parcela.getStatus() == ParcelaStatus.PAGO) {
-            throw new RuntimeException("Parcela já paga!");
+        Emprestimo emprestimo = parcela.getEmprestimo();
+
+        if (emprestimo.getEmprestimoStatus() == EmprestimoStatus.QUITADO) {
+            throw new EmprestimoQuitadoException();
         }
 
-        Emprestimo emprestimo = parcela.getEmprestimo();
+        if (parcela.getStatus() == ParcelaStatus.PAGO) {
+            throw new ParcelaPagaException();
+        }
 
         parcela.setStatus(ParcelaStatus.PAGO);
         parcela.setDataPagamento(LocalDate.now());
 
         BigDecimal valor = parcela.getValorParcela();
 
-        emprestimo.setValorRecebido(emprestimo.getValorRecebido().add(valor));
-        emprestimo.setValorAReceber(emprestimo.getValorAReceber().subtract(valor));
+        emprestimo.setValorRecebido(
+                emprestimo.getValorRecebido().add(valor)
+        );
+
+        emprestimo.setValorAReceber(
+                emprestimo.getValorAReceber().subtract(valor)
+        );
 
         if (emprestimo.getValorAReceber().compareTo(BigDecimal.ZERO) <= 0) {
             emprestimo.setEmprestimoStatus(EmprestimoStatus.QUITADO);
