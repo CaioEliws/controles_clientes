@@ -4,10 +4,7 @@ import com.caio.controle_clientes.principal.Principal;
 import com.caio.controle_clientes.repository.ClienteRepositorio;
 import com.caio.controle_clientes.repository.EmprestimoRepositorio;
 import com.caio.controle_clientes.repository.ParcelaRepositorio;
-import com.caio.controle_clientes.services.CalculadoraEmprestimoService;
-import com.caio.controle_clientes.services.ClienteService;
-import com.caio.controle_clientes.services.EmprestimoService;
-import com.caio.controle_clientes.services.ParcelaService;
+import com.caio.controle_clientes.services.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
@@ -28,6 +25,8 @@ public class ControleClientesApplication implements CommandLineRunner {
     private ParcelaRepositorio parcelaRepositorio;
     @Autowired
     private ParcelaService parcelaService;
+    @Autowired
+    private RelatorioService relatorioService;
 
     @Override
     public void run(String... args) throws Exception {
@@ -35,7 +34,8 @@ public class ControleClientesApplication implements CommandLineRunner {
                 emprestimoService,
                 clienteService,
                 parcelaRepositorio,
-                parcelaService
+                parcelaService,
+                relatorioService
         );
         principal.showMenu();
     }

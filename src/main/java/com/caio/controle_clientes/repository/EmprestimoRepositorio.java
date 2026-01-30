@@ -13,4 +13,6 @@ public interface EmprestimoRepositorio extends JpaRepository<Emprestimo, Long> {
 
     @Query("SELECT e FROM Emprestimo e JOIN FETCH e.parcelas WHERE e.id = :id")
     Optional<Emprestimo> buscarComParcelas(Long id);
+
+    List<Emprestimo> findByCliente(Cliente cliente);
 }

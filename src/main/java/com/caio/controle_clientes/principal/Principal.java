@@ -1,41 +1,39 @@
 package com.caio.controle_clientes.principal;
 
+import com.caio.controle_clientes.dto.InadimplenteDTO;
 import com.caio.controle_clientes.exceptions.EmprestimoQuitadoException;
 import com.caio.controle_clientes.exceptions.ParcelaPagaException;
 import com.caio.controle_clientes.models.*;
-import com.caio.controle_clientes.repository.ClienteRepositorio;
-import com.caio.controle_clientes.repository.EmprestimoRepositorio;
 import com.caio.controle_clientes.repository.ParcelaRepositorio;
-import com.caio.controle_clientes.services.ClienteService;
-import com.caio.controle_clientes.services.EmprestimoService;
-import com.caio.controle_clientes.services.PagamentoMenuService;
-import com.caio.controle_clientes.services.ParcelaService;
+import com.caio.controle_clientes.services.*;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 import java.util.Scanner;
 
 @Component
 public class Principal {
     Scanner input = new Scanner(System.in);
 
-    private ParcelaRepositorio parcelaRepositorio;
+    private final ParcelaRepositorio parcelaRepositorio;
 
-    private EmprestimoService emprestimoService;
-    private ClienteService clienteService;
-    private ParcelaService parcelaService;
+    private final EmprestimoService emprestimoService;
+    private final ClienteService clienteService;
+    private final ParcelaService parcelaService;
+    private final RelatorioService relatorioService;
 
     public Principal(EmprestimoService emprestimoService,
                      ClienteService clienteService,
                      ParcelaRepositorio parcelaRepositorio,
-                     ParcelaService parcelaService) {
+                     ParcelaService parcelaService,
+                     RelatorioService relatorioService) {
         this.emprestimoService = emprestimoService;
         this.clienteService = clienteService;
         this.parcelaRepositorio = parcelaRepositorio;
         this.parcelaService = parcelaService;
+        this.relatorioService = relatorioService;
     }
 
     public void showMenu() {
@@ -43,13 +41,16 @@ public class Principal {
 
         while (option != 0) {
             String menu = """
-                    1 - Cadastrar cliente
+                    \n1 - Cadastrar cliente
                     2 - Criar empréstimo
                     3 - Pagar parcela
                     4 - Listar todas as parcelas pendentes
                     5 - Listar todas parcelas atrasadas
                     6 - Listar parcelas vencem hoje
-                    7 - Listar empréstimos de um cliente
+                    7 - Listar empréstimos e parcelas de um cliente
+                    8 - Filtrar parcelas deste mês
+                    9 - Ver histórico financeiro do cliente
+                    10 - Relatório de inadimplentes
                     0 - Sair
                     """;
 
@@ -63,8 +64,11 @@ public class Principal {
                 case 3 -> pagarParcela();
                 case 4 -> listarParcelasPorStatus(ParcelaStatus.PENDENTE);
                 case 5 -> listarParcelasPorStatus(ParcelaStatus.ATRASADO);
-                case 6 -> listarParcelasVencendoHoje(ParcelaStatus.PENDENTE, LocalDate.now());
+                case 6 -> listarParcelasVencendoHoje(LocalDate.now());
                 case 7 -> listarEmprestimos();
+                case 8 -> listarParcelasDoMesAtual();
+                case 9 -> mostrarHistoricoCliente();
+                case 10 -> mostrarRelatorioInadimplentes();
                 case 0 -> System.out.println("Saindo...");
                 default -> System.out.println("Opção inválida");
             }
@@ -149,29 +153,20 @@ public class Principal {
         Long idEmprestimo = input.nextLong();
         input.nextLine();
 
-        Emprestimo emprestimoSelecionado = emprestimos.stream()
-                .filter(e -> e.getId().equals(idEmprestimo))
-                .findFirst()
-                .orElse(null);
-
-        if (emprestimoSelecionado == null) {
-            System.out.println("Empréstimo não encontrado.");
-            return;
-        }
-
-        if (emprestimoSelecionado.getEmprestimoStatus() == EmprestimoStatus.QUITADO) {
-            System.out.println("Esse empréstimo já está quitado.");
-            return;
-        }
-
-        List<Parcelas> parcelas = emprestimoService.listarParcelas(idEmprestimo);
+        List<Parcelas> parcelas =
+                emprestimoService.listarParcelas(idEmprestimo);
 
         System.out.println("\nParcelas:");
 
         parcelas.forEach(p -> {
+            BigDecimal saldo =
+                    p.getValorParcela().subtract(p.getValorPago());
+
             System.out.println(
                     "Parcela: " + p.getNumeroParcela() +
                             " | Valor: " + p.getValorParcela() +
+                            " | Pago: " + p.getValorPago() +
+                            " | Saldo: " + saldo +
                             " | Status: " + p.getStatus()
             );
         });
@@ -180,16 +175,25 @@ public class Principal {
         Integer numeroParcela = input.nextInt();
         input.nextLine();
 
+        System.out.print("Digite o valor a pagar: ");
+        String valorTexto = input.next().replace(",", ".");
+        BigDecimal valorPago = new BigDecimal(valorTexto);
+        input.nextLine();
+
         try {
-            emprestimoService.pagarParcela(idEmprestimo, numeroParcela);
-            System.out.println("\nParcela paga com sucesso!");
-        } catch (EmprestimoQuitadoException e) {
+            emprestimoService.pagarParcelaParcial(
+                    idEmprestimo,
+                    numeroParcela,
+                    valorPago
+            );
+
+            System.out.println("\nPagamento realizado com sucesso!");
+
+        } catch (EmprestimoQuitadoException | ParcelaPagaException e) {
             System.out.println(e.getMessage());
-        } catch (ParcelaPagaException e) {
-            System.out.println(e.getMessage());
+
         } catch (RuntimeException e) {
             System.out.println("Erro: " + e.getMessage());
-
         }
     }
 
@@ -203,24 +207,30 @@ public class Principal {
             return;
         }
 
-        parcelas.forEach(p -> System.out.printf(
-                "Cliente: %s | Parcela %d | Valor emprestado: R$%.2f | Valor parcela: R$%.2f | Data de vencimento: %s%n",
-                p.getEmprestimo().getCliente().getNome(),
-                p.getNumeroParcela(),
-                p.getEmprestimo().getValorEmprestado(),
-                p.getValorParcela(),
-                p.getDataVencimento()
-        ));
+        parcelas.forEach(p -> {
+            BigDecimal saldo =
+                    p.getValorParcela().subtract(p.getValorPago());
+
+            System.out.printf(
+                    "Parcela %d | Valor: R$ %.2f | Pago: R$ %.2f | Saldo: R$ %.2f | Status: %s | Vencimento: %s%n",
+                    p.getNumeroParcela(),
+                    p.getValorParcela(),
+                    p.getValorPago(),
+                    saldo,
+                    p.getStatus(),
+                    p.getDataVencimento()
+            );
+        });
     }
 
-    private void listarParcelasVencendoHoje(ParcelaStatus status, LocalDate dataVencimento) {
+    private void listarParcelasVencendoHoje(LocalDate dataVencimento) {
         parcelaService.atualizarParcelasAtrasadas();
 
 
-        List<Parcelas> parcelas = parcelaRepositorio.findParcelasVencendoHoje(status, dataVencimento);
+        List<Parcelas> parcelas = parcelaRepositorio.findParcelasVencendoHoje(ParcelaStatus.PENDENTE, dataVencimento);
 
         if (parcelas.isEmpty()) {
-            System.out.printf("Não há parcelas vencndo hoje.");
+            System.out.print("Não há parcelas vencendo hoje.");
             return;
         }
 
@@ -286,5 +296,93 @@ public class Principal {
                     p.getDataVencimento()
             );
         });
+    }
+
+    private void listarParcelasDoMesAtual() {
+        parcelaService.atualizarParcelasAtrasadas();
+
+        LocalDate inicioMes = LocalDate.now().withDayOfMonth(1);
+        LocalDate fimMes = LocalDate.now().withDayOfMonth(
+                LocalDate.now().lengthOfMonth()
+        );
+
+        List<Parcelas> parcelas = parcelaRepositorio.findParcelasDoMes(inicioMes, fimMes);
+
+        if (parcelas.isEmpty()) {
+            System.out.println("Não há parcelas para este mês.");
+            return;
+        }
+
+        System.out.println("\nParcelas deste mês:");
+        parcelas.forEach(p -> System.out.printf(
+                "Cliente: %s | Parcela %d | Valor: R$%.2f | Status: %s | Vencimento: %s%n",
+                p.getEmprestimo().getCliente().getNome(),
+                p.getNumeroParcela(),
+                p.getValorParcela(),
+                p.getStatus(),
+                p.getDataVencimento()
+        ));
+    }
+
+    private void mostrarHistoricoCliente() {
+        Cliente cliente = buscarClienteExistente();
+
+        var historico = relatorioService.gerarHistoricoCliente(cliente);
+
+        System.out.println("\n===== HISTÓRICO FINANCEIRO =====");
+
+        System.out.println("Cliente: " + cliente.getNome());
+
+        System.out.printf("Total emprestado: R$ %.2f%n",
+                historico.totalEmprestado());
+
+        System.out.printf("Total pago: R$ %.2f%n",
+                historico.totalPago());
+
+        System.out.printf("Total em aberto: R$ %.2f%n",
+                historico.totalAberto());
+
+        System.out.println("Parcelas atrasadas: " +
+                historico.parcelasAtrasadas());
+
+        System.out.println("Quantidade de empréstimos: " +
+                historico.totalEmprestimos());
+
+        System.out.println("===============================\n");
+    }
+
+    private void mostrarRelatorioInadimplentes() {
+
+        var inadimplentes = relatorioService.gerarRelatorioInadimplentes();
+
+        if (inadimplentes.isEmpty()) {
+            System.out.println("Não há clientes inadimplentes.");
+            return;
+        }
+
+        System.out.println("\n====== RELATÓRIO DE INADIMPLENTES ======\n");
+
+        inadimplentes.forEach(i -> {
+
+            System.out.println("Cliente: " + i.nomeCliente());
+            System.out.println("Parcelas em atraso: " + i.quantidadeParcelasAtrasadas());
+            System.out.printf("Valor em atraso: R$ %.2f%n", i.valorTotalEmAtraso());
+            System.out.println("Último vencimento: " + i.ultimoVencimento());
+
+            System.out.println("---------------------------------------");
+        });
+
+        BigDecimal totalGeral =
+                inadimplentes.stream()
+                        .map(InadimplenteDTO::valorTotalEmAtraso)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        System.out.printf("\nTOTAL DE CLIENTES INADIMPLENTES: %d%n",
+                inadimplentes.size());
+
+        System.out.printf("VALOR TOTAL EM ATRASO: R$ %.2f%n",
+                totalGeral);
+
+        System.out.println("\n=======================================");
     }
 }

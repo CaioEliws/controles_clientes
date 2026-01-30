@@ -1,6 +1,5 @@
 package com.caio.controle_clientes.services;
 
-import com.caio.controle_clientes.exceptions.EmprestimoQuitadoException;
 import com.caio.controle_clientes.exceptions.ParcelaPagaException;
 import com.caio.controle_clientes.models.*;
 import com.caio.controle_clientes.repository.EmprestimoRepositorio;
@@ -15,16 +14,21 @@ import java.util.List;
 
 @Service
 public class EmprestimoService {
-    private EmprestimoRepositorio emprestimoRepositorio;
-    private ParcelaRepositorio parcelaRepositorio;
-    private CalculadoraEmprestimoService calculadora;
+
+    private final EmprestimoRepositorio emprestimoRepositorio;
+    private final ParcelaRepositorio parcelaRepositorio;
+    private final CalculadoraEmprestimoService calculadora;
+    private final ParcelaService parcelaService;
 
     public EmprestimoService(EmprestimoRepositorio emprestimoRepositorio,
                              ParcelaRepositorio parcelaRepositorio,
-                             CalculadoraEmprestimoService calculadora) {
+                             CalculadoraEmprestimoService calculadora,
+                             ParcelaService parcelaService) {
+
         this.emprestimoRepositorio = emprestimoRepositorio;
         this.parcelaRepositorio = parcelaRepositorio;
         this.calculadora = calculadora;
+        this.parcelaService = parcelaService;
     }
 
     @Transactional
@@ -33,6 +37,7 @@ public class EmprestimoService {
                                       int quantidadeParcelas,
                                       BigDecimal jurosCobrado,
                                       FormaPagamento formaPagamento) {
+
         Emprestimo emprestimo = new Emprestimo();
 
         emprestimo.setCliente(cliente);
@@ -55,10 +60,10 @@ public class EmprestimoService {
                 .setScale(2, RoundingMode.HALF_UP);
 
         emprestimo.setValorParcela(valorParcela);
-
         emprestimo.setValorTotalEmprestimo(valorTotal);
-        emprestimo.setValorAReceber(valorTotal);
+
         emprestimo.setValorRecebido(BigDecimal.ZERO);
+        emprestimo.setValorAReceber(valorTotal);
 
         emprestimoRepositorio.save(emprestimo);
 
@@ -71,44 +76,109 @@ public class EmprestimoService {
         return emprestimo;
     }
 
+    // ==========================
+    // PAGAMENTO INTEGRAL
+    // ==========================
+
     @Transactional
-    public void pagarParcela(Long idEmprestimo, Integer numeroParcela)
-            throws ParcelaPagaException, EmprestimoQuitadoException {
+    public void pagarParcela(Long idEmprestimo, Integer numeroParcela) {
 
-        Parcelas parcela = (Parcelas) parcelaRepositorio
-                .findByEmprestimoIdAndNumeroParcela(idEmprestimo, numeroParcela)
-                .orElseThrow(() -> new RuntimeException("Parcela não encontrada"));
+        Parcelas parcela = buscarParcela(idEmprestimo, numeroParcela);
 
-        Emprestimo emprestimo = parcela.getEmprestimo();
+        pagarParcelaParcial(
+                idEmprestimo,
+                numeroParcela,
+                parcela.getValorParcela().subtract(parcela.getValorPago())
+        );
+    }
 
-        if (emprestimo.getEmprestimoStatus() == EmprestimoStatus.QUITADO) {
-            throw new EmprestimoQuitadoException();
-        }
+    // ==========================
+    // PAGAMENTO PARCIAL
+    // ==========================
+
+    @Transactional
+    public void pagarParcelaParcial(Long idEmprestimo,
+                                    Integer numeroParcela,
+                                    BigDecimal valorPago) {
+
+        Parcelas parcela = buscarParcela(idEmprestimo, numeroParcela);
 
         if (parcela.getStatus() == ParcelaStatus.PAGO) {
             throw new ParcelaPagaException();
         }
 
-        parcela.setStatus(ParcelaStatus.PAGO);
-        parcela.setDataPagamento(LocalDate.now());
+        if (valorPago.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("Valor deve ser maior que zero");
+        }
 
-        BigDecimal valor = parcela.getValorParcela();
+        BigDecimal saldoAtual =
+                parcela.getValorParcela().subtract(parcela.getValorPago());
 
-        emprestimo.setValorRecebido(
-                emprestimo.getValorRecebido().add(valor)
+        if (valorPago.compareTo(saldoAtual) > 0) {
+            throw new RuntimeException("Valor maior que o saldo da parcela");
+        }
+
+        // Atualiza parcela
+        parcela.setValorPago(
+                parcela.getValorPago().add(valorPago)
         );
 
-        emprestimo.setValorAReceber(
-                emprestimo.getValorAReceber().subtract(valor)
-        );
+        if (parcela.getValorPago()
+                .compareTo(parcela.getValorParcela()) == 0) {
 
-        if (emprestimo.getValorAReceber().compareTo(BigDecimal.ZERO) <= 0) {
-            emprestimo.setEmprestimoStatus(EmprestimoStatus.QUITADO);
+            parcela.setStatus(ParcelaStatus.PAGO);
+
+        } else {
+            parcela.setStatus(ParcelaStatus.PARCIAL);
         }
 
         parcelaRepositorio.save(parcela);
+
+        // Atualiza empréstimo
+        atualizarFinanceiroEmprestimo(parcela.getEmprestimo(), valorPago);
+    }
+
+    // ==========================
+    // ATUALIZA SALDO DO EMPRÉSTIMO
+    // ==========================
+
+    private void atualizarFinanceiroEmprestimo(Emprestimo emprestimo,
+                                               BigDecimal valorPago) {
+
+        emprestimo.setValorRecebido(
+                emprestimo.getValorRecebido().add(valorPago)
+        );
+
+        emprestimo.setValorAReceber(
+                emprestimo.getValorTotalEmprestimo()
+                        .subtract(emprestimo.getValorRecebido())
+        );
+
+        // Fecha empréstimo se tudo pago
+        boolean todasPagas = emprestimo.getParcelas()
+                .stream()
+                .allMatch(p -> p.getStatus() == ParcelaStatus.PAGO);
+
+        if (todasPagas) {
+            emprestimo.setEmprestimoStatus(EmprestimoStatus.QUITADO);
+        }
+
         emprestimoRepositorio.save(emprestimo);
     }
+
+    // ==========================
+    // BUSCA PARCELA (REUTILIZÁVEL)
+    // ==========================
+
+    private Parcelas buscarParcela(Long idEmprestimo, Integer numeroParcela) {
+        return (Parcelas) parcelaRepositorio
+                .findByEmprestimoIdAndNumeroParcela(idEmprestimo, numeroParcela)
+                .orElseThrow(() -> new RuntimeException("Parcela não encontrada"));
+    }
+
+    // ==========================
+    // LISTAGENS
+    // ==========================
 
     @Transactional
     public List<Emprestimo> listarEmprestimosCliente(Cliente cliente) {
@@ -117,7 +187,8 @@ public class EmprestimoService {
 
     @Transactional
     public List<Parcelas> listarParcelas(Long idEmprestimo) {
-        Emprestimo emprestimo = emprestimoRepositorio.buscarComParcelas((idEmprestimo))
+
+        Emprestimo emprestimo = emprestimoRepositorio.buscarComParcelas(idEmprestimo)
                 .orElseThrow(() -> new RuntimeException("Emprestimo não encontrado"));
 
         return emprestimo.getParcelas();

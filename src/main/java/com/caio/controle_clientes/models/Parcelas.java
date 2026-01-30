@@ -27,6 +27,9 @@ public class Parcelas {
     @JoinColumn(name = "emprestimo_id")
     private Emprestimo emprestimo;
 
+    @Column(nullable = false)
+    private BigDecimal valorPago = BigDecimal.ZERO;
+
     public  Parcelas() {}
 
     public Parcelas(Integer numeroParcela,
@@ -34,13 +37,15 @@ public class Parcelas {
                     LocalDate dataVencimento,
                     ParcelaStatus status,
                     LocalDate dataPagamento,
-                    Emprestimo emprestimo) {
+                    Emprestimo emprestimo,
+                    BigDecimal valorPago) {
         this.numeroParcela = numeroParcela;
         this.valorParcela = valorParcela;
         this.dataVencimento = dataVencimento;
         this.status = status;
         this.dataPagamento = dataPagamento;
         this.emprestimo = emprestimo;
+        this.valorPago = valorPago;
     }
 
     public Long getId() {
@@ -93,5 +98,13 @@ public class Parcelas {
 
     public void setEmprestimo(Emprestimo emprestimo) {
         this.emprestimo = emprestimo;
+    }
+
+    public BigDecimal getValorPago() {
+        return valorPago;
+    }
+
+    public void setValorPago(BigDecimal valorPago) {
+        this.valorPago = valorPago;
     }
 }
