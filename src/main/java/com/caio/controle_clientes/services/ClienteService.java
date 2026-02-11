@@ -2,14 +2,18 @@ package com.caio.controle_clientes.services;
 
 import com.caio.controle_clientes.models.Cliente;
 import com.caio.controle_clientes.repository.ClienteRepositorio;
+import com.caio.controle_clientes.repository.EmprestimoRepositorio;
 import org.springframework.stereotype.Service;
 
 @Service
 public class ClienteService {
     private ClienteRepositorio clienteRepositorio;
+    private EmprestimoRepositorio emprestimoRepositorio;
 
-    public ClienteService(ClienteRepositorio clienteRepositorio) {
+    public ClienteService(ClienteRepositorio clienteRepositorio,
+                          EmprestimoRepositorio emprestimoRepositorio) {
         this.clienteRepositorio = clienteRepositorio;
+        this.emprestimoRepositorio = emprestimoRepositorio;
     }
 
     public Cliente getClienteById(Long id) {
@@ -53,5 +57,20 @@ public class ClienteService {
         cliente.setEnderecoNumero(numero);
 
         clienteRepositorio.save(cliente);
+    }
+
+    public void deletarCliente(Long clienteId) {
+        Cliente cliente = getClienteById(clienteId);
+
+        boolean possuiEmprestimos =
+                emprestimoRepositorio.existsByClienteId(clienteId);
+
+        if (possuiEmprestimos) {
+            throw new RuntimeException(
+                    "Não é possível deletar o cliente pois ele possui empréstimos cadastrados."
+            );
+        }
+
+        clienteRepositorio.delete(cliente);
     }
 }

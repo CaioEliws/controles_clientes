@@ -193,4 +193,30 @@ public class EmprestimoService {
 
         return emprestimo.getParcelas();
     }
+
+    // ==========================
+    // DELETAR EMPRESTIMO
+    // ==========================
+    @Transactional
+    public void deletarEmprestimo(Long idCliente, Long idEmprestimo) {
+        Emprestimo emprestimo = emprestimoRepositorio.findById(idEmprestimo)
+                .orElseThrow(() -> new RuntimeException("Empréstimo não encontrado"));
+
+        if (!emprestimo.getCliente().getId().equals(idCliente)) {
+            throw new RuntimeException("Este empréstimo não pertence ao cliente informado");
+        }
+
+        boolean existeParcelaPaga = emprestimo.getParcelas()
+                .stream()
+                .anyMatch(p -> p.getStatus() == ParcelaStatus.PAGO
+                        || p.getStatus() == ParcelaStatus.PARCIAL);
+
+        if (existeParcelaPaga) {
+            throw new RuntimeException("Não é possível excluir empréstimo com parcelas pagas");
+        }
+
+        parcelaRepositorio.deleteAll(emprestimo.getParcelas());
+
+        emprestimoRepositorio.delete(emprestimo);
+    }
 }

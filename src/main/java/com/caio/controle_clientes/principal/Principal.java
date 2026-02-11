@@ -56,6 +56,8 @@ public class Principal {
                     10 - Relatório de inadimplentes
                     11 - Editar nome do cliente
                     12 - Editar endereço do cliente
+                    13 - Deletar emprestimo
+                    14 - Deletar Cliente
                     0 - Sair
                     """;
 
@@ -76,6 +78,8 @@ public class Principal {
                 case 10 -> mostrarRelatorioInadimplentes();
                 case 11 -> editNomeCliente();
                 case 12 -> editEnderecoCliente();
+                case 13 -> deleteCliente();
+                case 14 -> deleteEmprestimo();
                 case 0 -> System.out.println("Saindo...");
                 default -> System.out.println("Opção inválida");
             }
@@ -106,6 +110,38 @@ public class Principal {
         clienteService.criarCliente(nomeCliente, nomeIndicador);
 
         System.out.println("Cliente cadastrado com sucesso!");
+    }
+
+    private void deleteCliente() {
+        System.out.println("Digite o nome do cliente que deseja deletar:");
+        String nomeCliente = input.nextLine();
+
+        Cliente cliente;
+        try {
+            cliente = clienteService.buscarPorNome(nomeCliente);
+        } catch (RuntimeException e) {
+            System.out.println(e.getMessage());
+            return;
+        }
+
+        System.out.print(
+                "Tem certeza que deseja deletar o cliente " +
+                        cliente.getNome() + "? (s/n): "
+        );
+
+        String confirmacao = input.nextLine();
+
+        if (!confirmacao.equalsIgnoreCase("s")) {
+            System.out.println("Operação cancelada.");
+            return;
+        }
+
+        try {
+            clienteService.deletarCliente(cliente.getId());
+            System.out.println("Cliente deletado com sucesso!");
+        } catch (RuntimeException e) {
+            System.out.println("Erro: " + e.getMessage());
+        }
     }
 
     private void editNomeCliente() {
@@ -194,6 +230,47 @@ public class Principal {
         );
 
         System.out.println("Emprèstimo criado com sucesso!");
+    }
+
+    private void deleteEmprestimo() {
+        Cliente cliente = buscarClienteExistente();
+
+        List<Emprestimo> emprestimos =
+                emprestimoService.listarEmprestimosCliente(cliente);
+
+        if (emprestimos.isEmpty()) {
+            System.out.println("Esse cliente não possui empréstimos.");
+            return;
+        }
+
+        System.out.println("\nEmpréstimos do cliente:");
+
+        emprestimos.forEach(e -> {
+            System.out.println(
+                    "----------------------------" +
+                            "\nID: " + e.getId() +
+                            "\nTotal: " + e.getValorTotalEmprestimo() +
+                            "\nA Receber: " + e.getValorAReceber() +
+                            "\nStatus: " + e.getEmprestimoStatus() +
+                            "\n----------------------------"
+            );
+        });
+
+        System.out.print("\nDigite o ID do empréstimo que deseja deletar: ");
+        Long idEmprestimo = input.nextLong();
+        input.nextLine();
+
+        try {
+            emprestimoService.deletarEmprestimo(
+                    cliente.getId(),
+                    idEmprestimo
+            );
+
+            System.out.println("Empréstimo deletado com sucesso!");
+
+        } catch (RuntimeException e) {
+            System.out.println("Erro ao deletar empréstimo: " + e.getMessage());
+        }
     }
 
     private void pagarParcela() {

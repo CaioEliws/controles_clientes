@@ -15,4 +15,6 @@ public interface EmprestimoRepositorio extends JpaRepository<Emprestimo, Long> {
     Optional<Emprestimo> buscarComParcelas(Long id);
 
     List<Emprestimo> findByCliente(Cliente cliente);
+
+    boolean existsByClienteId(Long clienteId);
 }
