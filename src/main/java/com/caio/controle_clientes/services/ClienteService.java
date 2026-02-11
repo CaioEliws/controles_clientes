@@ -12,6 +12,11 @@ public class ClienteService {
         this.clienteRepositorio = clienteRepositorio;
     }
 
+    public Cliente getClienteById(Long id) {
+        return clienteRepositorio.findById(id)
+                .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+    }
+
     public Cliente buscarPorNome(String nome) {
         return clienteRepositorio
                 .findByNomeContainingIgnoreCase(nome)
@@ -30,6 +35,22 @@ public class ClienteService {
         Cliente cliente = new Cliente();
         cliente.setNome(nome);
         cliente.setNomeIndicador(indicador);
+
+        clienteRepositorio.save(cliente);
+    }
+
+    public void updateNameCliente(Long id, String nome) {
+        Cliente cliente = getClienteById(id);
+        cliente.setNome(nome);
+        clienteRepositorio.save(cliente);
+    }
+
+    public void updateEnderecoCliente(Long id, String rua, String bairro, Integer numero) {
+        Cliente cliente = getClienteById(id);
+
+        cliente.setEnderecoRua(rua);
+        cliente.setEnderecoBairro(bairro);
+        cliente.setEnderecoNumero(numero);
 
         clienteRepositorio.save(cliente);
     }

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.Scanner;
 
 @Component
@@ -39,6 +40,8 @@ public class Principal {
     public void showMenu() {
         int option = -1;
 
+        // Adicionar Crud (DELETE, EDIT)
+
         while (option != 0) {
             String menu = """
                     \n1 - Cadastrar cliente
@@ -51,6 +54,8 @@ public class Principal {
                     8 - Filtrar parcelas deste mês
                     9 - Ver histórico financeiro do cliente
                     10 - Relatório de inadimplentes
+                    11 - Editar nome do cliente
+                    12 - Editar endereço do cliente
                     0 - Sair
                     """;
 
@@ -69,6 +74,8 @@ public class Principal {
                 case 8 -> listarParcelasDoMesAtual();
                 case 9 -> mostrarHistoricoCliente();
                 case 10 -> mostrarRelatorioInadimplentes();
+                case 11 -> editNomeCliente();
+                case 12 -> editEnderecoCliente();
                 case 0 -> System.out.println("Saindo...");
                 default -> System.out.println("Opção inválida");
             }
@@ -99,6 +106,68 @@ public class Principal {
         clienteService.criarCliente(nomeCliente, nomeIndicador);
 
         System.out.println("Cliente cadastrado com sucesso!");
+    }
+
+    private void editNomeCliente() {
+        System.out.println("Digite o nome atual do cliente: ");
+        String nomeAtual = input.nextLine();
+
+        Cliente cliente;
+        try {
+            cliente = clienteService.buscarPorNome(nomeAtual);
+        } catch (RuntimeException e) {
+            System.out.println(e.getMessage());
+            return;
+        }
+
+        System.out.println("Digite o novo nome do cliente: ");
+        String novoNome = input.nextLine();
+
+        if (novoNome.isBlank()) {
+            System.out.println("Nome inválido!");
+            return;
+        }
+
+        clienteService.updateNameCliente(cliente.getId(), novoNome);
+        System.out.println("Nome do cliente atualizado com sucesso!");
+    }
+
+
+    private void editEnderecoCliente() {
+        System.out.println("Digite o nome do cliente: ");
+        String nomeCliente = input.nextLine();
+
+        Cliente cliente;
+        try {
+            cliente = clienteService.buscarPorNome(nomeCliente);
+        } catch (RuntimeException e) {
+            System.out.println(e.getMessage());
+            return;
+        }
+
+        System.out.println("Nova rua: ");
+        String rua = input.nextLine();
+
+        System.out.println("Novo bairro: ");
+        String bairro = input.nextLine();
+
+        System.out.println("Novo número: ");
+        Integer numero = input.nextInt();
+        input.nextLine();
+
+        if (rua.isBlank() || bairro.isBlank()) {
+            System.out.println("Endereço inválido!");
+            return;
+        }
+
+        clienteService.updateEnderecoCliente(
+                cliente.getId(),
+                rua,
+                bairro,
+                numero
+        );
+
+        System.out.println("Endereço atualizado com sucesso!");
     }
 
     private void criarEmprestimo() {

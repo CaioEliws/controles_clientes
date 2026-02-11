@@ -16,6 +16,12 @@ public class Cliente {
 
     private String nomeIndicador;
 
+    private String enderecoRua;
+
+    private String enderecoBairro;
+
+    private  Integer enderecoNumero;
+
     private LocalDate criadoEm = LocalDate.now();
 
     @OneToMany(mappedBy = "cliente",
@@ -36,6 +42,30 @@ public class Cliente {
 
     public Long getId() {
         return id;
+    }
+
+    public String getEnderecoRua() {
+        return enderecoRua;
+    }
+
+    public void setEnderecoRua(String enderecoRua) {
+        this.enderecoRua = enderecoRua;
+    }
+
+    public String getEnderecoBairro() {
+        return enderecoBairro;
+    }
+
+    public void setEnderecoBairro(String enderecoBairro) {
+        this.enderecoBairro = enderecoBairro;
+    }
+
+    public Integer getEnderecoNumero() {
+        return enderecoNumero;
+    }
+
+    public void setEnderecoNumero(Integer enderecoNumero) {
+        this.enderecoNumero = enderecoNumero;
     }
 
     public String getNome() {
