@@ -30,13 +30,16 @@ public class ControleClientesApplication implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        Principal principal = new Principal(
-                emprestimoService,
-                clienteService,
-                parcelaRepositorio,
-                parcelaService,
-                relatorioService
-        );
+        Principal principal = new Principal();
         principal.showMenu();
+
+//        Principal principal = new Principal(
+//                emprestimoService,
+//                clienteService,
+//                parcelaRepositorio,
+//                parcelaService,
+//                relatorioService
+//        );
+//        principal.showMenu();
     }
 }

@@ -1,5 +1,6 @@
 package com.caio.controle_clientes.models;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
 import java.math.BigDecimal;
@@ -45,6 +46,7 @@ public class Emprestimo {
     @JoinColumn(name = "cliente_id")
     private Cliente cliente;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "emprestimo",
             cascade = CascadeType.ALL,
             orphanRemoval = true,

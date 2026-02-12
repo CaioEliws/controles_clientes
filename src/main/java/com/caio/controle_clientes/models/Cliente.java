@@ -1,5 +1,6 @@
 package com.caio.controle_clientes.models;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
 import java.time.LocalDate;
@@ -24,6 +25,7 @@ public class Cliente {
 
     private LocalDate criadoEm = LocalDate.now();
 
+    @JsonIgnore
     @OneToMany(mappedBy = "cliente",
             cascade = CascadeType.ALL)
     private List<Emprestimo> emprestimos;
